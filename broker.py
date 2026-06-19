@@ -95,13 +95,17 @@ class AlpacaBroker(BrokerBase):
         from alpaca.trading.requests import MarketOrderRequest
         from alpaca.trading.enums import OrderSide, TimeInForce
         s = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+        is_crypto = "/" in symbol
+        # Crypto: Alpaca requires GTC/IOC (DAY is rejected) and supports fractional qty.
+        # Equities: DAY, with a whole-share fallback if the asset is not fractionable.
+        tif = TimeInForce.GTC if is_crypto else TimeInForce.DAY
         q = round(abs(qty), 3)
         if q <= 0:
             return {"symbol": symbol, "skipped": True, "placed": False}
 
         def _send(quantity):
             req = MarketOrderRequest(symbol=symbol, qty=quantity, side=s,
-                                     time_in_force=TimeInForce.DAY)
+                                     time_in_force=tif)
             return self.client.submit_order(order_data=req)
 
         try:
@@ -113,7 +117,12 @@ class AlpacaBroker(BrokerBase):
                     "error": "timeout -- order status UNKNOWN; verify on the Alpaca "
                              "dashboard before resending (it may have reached the market)"}
         except Exception as e:
-            # Non-timeout error (e.g. asset not fractionable): one whole-share retry.
+            # Non-timeout error. Crypto is fractional, so int()-rounding it to a whole
+            # unit would zero a sub-1 order -- don't retry, just report. Equities may be
+            # non-fractionable, so try one whole-share order.
+            if is_crypto or int(q) <= 0:
+                return {"symbol": symbol, "side": side, "qty": q, "placed": False,
+                        "error": f"{e}"}
             try:
                 o = _run(lambda: _send(int(q)))
             except BrokerTimeout:
