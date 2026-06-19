@@ -17,6 +17,8 @@ CLI:
 
 from __future__ import annotations
 import sys
+import os
+import json
 import datetime as dt
 
 import config
@@ -41,9 +43,27 @@ def make_broker() -> BrokerBase:
     return AlpacaBroker(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=paper)
 
 
+def runtime_params(strategy: str) -> dict:
+    """The exact params the bot trades. For 'trend', overlay the validated winner
+    (fast/slow) from the latest validation report so the bot trades precisely what
+    passed the live gate; everything else (e.g. allow_short) stays from config.
+    Falls back to config defaults if no report exists."""
+    params = dict(config.STRATEGY_PARAMS.get(strategy, {}))
+    if strategy == "trend":
+        try:
+            with open(os.path.join(config.VALIDATION_DIR, f"{strategy}.json")) as f:
+                winner = (json.load(f) or {}).get("winner_params") or {}
+            for k in ("fast", "slow"):
+                if k in winner:
+                    params[k] = winner[k]
+        except Exception:
+            pass
+    return params
+
+
 def compute_signal_atr(df, strategy: str):
     fn = _STRATEGY_FN[strategy]
-    params = dict(config.STRATEGY_PARAMS.get(strategy, {}))
+    params = runtime_params(strategy)
     sig = fn(df, **params)
     last_sig = float(sig.iloc[-1]) if len(sig) and sig.iloc[-1] == sig.iloc[-1] else 0.0
     a = S.atr(df, config.RISK.atr_n)

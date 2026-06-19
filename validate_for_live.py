@@ -35,13 +35,17 @@ TREND_GRID = {"fast": (20, 30, 50, 75, 100), "slow": (100, 150, 200, 250)}
 
 def _portfolio_net(params: dict) -> pd.Series:
     """Equal-weight, vol-targeted portfolio net returns across the universe."""
+    # Validate the SAME strategy the bot trades: carry the runtime trend config
+    # (notably allow_short) and let the grid only vary fast/slow. Otherwise the gate
+    # would certify a long/short strategy the long-only bot never runs.
+    trend_cfg = dict(config.STRATEGY_PARAMS.get("trend", {}))
     legs = {}
     for inst in config.UNIVERSE:
         try:
             df = D.load(inst.yf, period="max")
         except Exception:
             continue
-        sig = S.trend_signal(df, **params)
+        sig = S.trend_signal(df, **{**trend_cfg, **params})
         expo = S.vol_target_exposure(df, sig,
                                      risk_per_trade=config.RISK.max_risk_per_trade,
                                      k_stop=config.RISK.k_stop,

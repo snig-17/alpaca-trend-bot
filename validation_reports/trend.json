@@ -17,9 +17,9 @@
     "fast": 50,
     "slow": 150
   },
-  "is_sharpe": 0.56,
-  "oos_sharpe": 0.725,
-  "deflated_sharpe": 0.9818,
+  "is_sharpe": 0.826,
+  "oos_sharpe": 1.064,
+  "deflated_sharpe": 0.9997,
   "passing": true,
-  "generated_at": "2026-06-19T11:48:24"
+  "generated_at": "2026-06-19T11:55:52"
 }

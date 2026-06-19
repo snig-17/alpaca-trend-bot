@@ -50,19 +50,22 @@ python validate_for_live.py  # walk-forward validation; writes validation_report
 ## Current status (last verified 2026-06-19)
 - `test_safety.py` — all 11 checks PASS (9-name universe; the gross-cap test is now
   rounding-aware since summing 9 display-rounded targets drifts ~3e-4).
-- `validate_for_live.py` — PASSES on the 10-instrument universe (9 ETFs + BTC):
-  in-sample Sharpe 0.56, out-of-sample 0.725, deflated Sharpe 0.982 over 19 trials
-  (grid winner fast=50, slow=150). Report in `validation_reports/trend.json`.
-  - HONEST NOTE on BTC: adding it raised OOS Sharpe (0.50->0.725) but this is largely
-    a CRYPTO-BULL-RUN ARTIFACT (BTC's 2017/2020-21 runs land in the OOS half) — do NOT
-    read 0.725 as a forecast. Crypto is high-vol, drawdown-heavy (>-70% bears), long-
-    only here, and its future is far more uncertain than its past. DSR also fell
-    (0.995->0.982, still > 0.95 gate). ATR sizing keeps the BTC position small.
+- `validate_for_live.py` — PASSES on the 10-instrument universe (9 ETFs + BTC),
+  now validating the EXACT strategy the bot trades (long-only, allow_short=False):
+  in-sample Sharpe 0.83, out-of-sample 1.06, deflated Sharpe 0.9997 over 19 trials
+  (winner fast=50, slow=150). Report in `validation_reports/trend.json`.
+  - GAP FIXED (2026-06-19): previously validation ran long/SHORT (trend_signal default
+    allow_short=True) while the bot runs long-only, AND the bot used config 50/200 while
+    validation reported a different grid winner. Now: validate_for_live carries the
+    runtime trend config (so it tests long-only), and bot.runtime_params() overlays the
+    validated winner fast/slow from the report — so the gate certifies what actually
+    trades. Long-only validated BETTER than long/short (shorting these trends lost money).
+  - HONEST NOTE on BTC: the strong OOS number is materially inflated by BTC's 2017/
+    2020-21 bull runs landing in the OOS half (long-only crypto catches moonshots, never
+    shorts crashes) — do NOT read 1.06 as a forecast. Crypto is high-vol, drawdown-heavy
+    (>-70% bears); ATR sizing keeps the position small; it only trades when BTC's daily
+    trend is positive.
   - HONEST NOTE on 5->9 ETFs: was ~Sharpe-neutral (diversification, not alpha).
-  - KNOWN GAP: `validate_for_live.py` reports/gates the best GRID params (e.g. 50/150),
-    but the bot at runtime trades `config.STRATEGY_PARAMS["trend"]` (fast=50, slow=200).
-    So the gate does not certify the exact params the bot trades. Pre-existing; should
-    be aligned (make the bot trade the validated winner, or validate the runtime params).
   - Do NOT tune the grid to manufacture a passing number.
 - `bot.py dry` / `bot.py once` — connect to Alpaca paper fine (equity $100k).
 
