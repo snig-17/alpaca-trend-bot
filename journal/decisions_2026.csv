@@ -406,3 +406,13 @@ timestamp,mode,symbol,signal,current_expo,target_expo,delta_notional,action,pric
 2026-07-14T16:10:46,PAPER,UUP,1.0,0.2474,0.25,264.82,HOLD,28.38,50/200 EMA trend: signal=long; target +25.0% of equity
 2026-07-14T16:10:46,PAPER,FXY,0.0,0.0,0.0,0.0,HOLD,56.57,50/200 EMA trend: signal=flat; target +0.0% of equity
 2026-07-14T16:10:46,PAPER,BTC/USD,0.0,0.0,0.0,0.0,HOLD,64827.4102,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-07-15T16:16:30,PAPER,SPY,1.0,0.247,0.25,306.52,HOLD,751.22,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-07-15T16:16:30,PAPER,EFA,1.0,0.2494,0.25,64.07,HOLD,103.99,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-07-15T16:16:30,PAPER,IEF,0.0,0.0008,0.0,-78.78,HOLD,93.78,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-07-15T16:16:30,PAPER,TLT,0.0,0.0,0.0,0.0,HOLD,84.29,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-07-15T16:16:30,PAPER,GLD,0.0,0.0,0.0,-1.85,HOLD,370.59,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-07-15T16:16:30,PAPER,DBC,1.0,0.2309,0.2495,1887.17,BUY,28.55,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-07-15T16:16:30,PAPER,DBA,1.0,0.2529,0.25,-297.14,HOLD,27.935,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-07-15T16:16:30,PAPER,UUP,1.0,0.2462,0.25,383.3,HOLD,28.3101,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-07-15T16:16:30,PAPER,FXY,0.0,0.0,0.0,0.0,HOLD,56.56,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-07-15T16:16:30,PAPER,BTC/USD,0.0,0.0,0.0,0.0,HOLD,65111.3906,50/200 EMA trend: signal=flat; target +0.0% of equity
