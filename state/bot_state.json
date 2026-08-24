@@ -1,8 +1,8 @@
 {
-  "day": "2026-08-23",
-  "day_start_equity": 105095.3,
+  "day": "2026-08-24",
+  "day_start_equity": 104666.52,
   "peak_equity": 105095.3,
   "day_pl": 0.0,
-  "drawdown": 0.0,
+  "drawdown": -0.004079916038110198,
   "consecutive_errors": 0
 }
