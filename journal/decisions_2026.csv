@@ -1276,3 +1276,13 @@ timestamp,mode,symbol,signal,current_expo,target_expo,delta_notional,action,pric
 2026-10-10T19:05:45,PAPER,UUP,1.0,0.2543,0.25,-465.43,SKIP_MARKET_CLOSED,29.02,50/200 EMA trend: signal=long; target +25.0% of equity
 2026-10-10T19:05:45,PAPER,FXY,0.0,0.0,0.0,0.0,SKIP_MARKET_CLOSED,57.9,50/200 EMA trend: signal=flat; target +0.0% of equity
 2026-10-10T19:05:45,PAPER,BTC/USD,1.0,0.1395,0.139,-48.76,HOLD,82949.3438,50/200 EMA trend: signal=long; target +13.9% of equity
+2026-10-11T19:18:13,PAPER,SPY,1.0,0.2533,0.25,-349.57,SKIP_MARKET_CLOSED,778.57,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-10-11T19:18:13,PAPER,EFA,1.0,0.2466,0.25,364.6,SKIP_MARKET_CLOSED,103.4,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-10-11T19:18:13,PAPER,IEF,0.0,0.0007,0.0,-75.1,SKIP_MARKET_CLOSED,89.4,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-10-11T19:18:13,PAPER,TLT,0.0,0.0,0.0,0.0,SKIP_MARKET_CLOSED,77.98,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-10-11T19:18:13,PAPER,GLD,0.0,0.0,0.0,-1.92,SKIP_MARKET_CLOSED,384.58,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-10-11T19:18:13,PAPER,DBC,1.0,0.2064,0.2067,38.23,SKIP_MARKET_CLOSED,32.96,50/200 EMA trend: signal=long; target +20.7% of equity
+2026-10-11T19:18:13,PAPER,DBA,1.0,0.2453,0.25,503.89,SKIP_MARKET_CLOSED,28.33,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-10-11T19:18:13,PAPER,UUP,1.0,0.2541,0.25,-435.21,SKIP_MARKET_CLOSED,29.02,50/200 EMA trend: signal=long; target +25.0% of equity
+2026-10-11T19:18:13,PAPER,FXY,0.0,0.0,0.0,0.0,SKIP_MARKET_CLOSED,57.9,50/200 EMA trend: signal=flat; target +0.0% of equity
+2026-10-11T19:18:13,PAPER,BTC/USD,1.0,0.1404,0.1387,-190.98,HOLD,83634.2188,50/200 EMA trend: signal=long; target +13.9% of equity
