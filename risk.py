@@ -10,7 +10,8 @@ manager decides how big, subject to hard limits the strategy cannot override:
   * Per-cluster cap            -- correlated names (e.g. SPY+EFA) can't secretly
                                   become one giant bet (the SPY~QQQ lesson)
   * Gross leverage cap         -- total |exposure| is bounded
-  * Daily-loss killswitch      -- halt + flatten if the day goes badly enough
+  * Daily-loss killswitch      -- halt + flatten if the day goes badly enough,
+                                  measured against the broker's previous close
   * Max-drawdown circuit breaker -- halt + flatten on a peak-to-trough threshold
 """
 
@@ -60,18 +61,33 @@ class RiskManager:
         return expo
 
     # --- circuit breakers ----------------------------------------------
-    def breaker_check(self, equity: float, state: dict) -> tuple[bool, list[str]]:
+    def breaker_check(self, equity: float, state: dict,
+                      last_equity: float | None = None) -> tuple[bool, list[str]]:
         """
         Inspect equity against day-start and peak. Mutates `state` (peak/day start)
         and returns (should_halt, reasons). A True here means: cancel, flatten, stop.
+
+        `last_equity` is the broker's equity at the PREVIOUS trading day's close
+        (Alpaca's `account.last_equity`) and is the correct day-start baseline.
+        Without it the baseline was snapshotted on the first run of each day --
+        and because the bot runs exactly once a day, that snapshot WAS the current
+        equity, so day P&L was structurally 0.00 and the daily-loss breaker could
+        never fire (it read 0.0 in 127 of 128 journal rows). Only use the local
+        snapshot as a fallback when the broker cannot supply a previous close.
         """
         c = self.cfg
         today = dt.date.today().isoformat()
         reasons: list[str] = []
 
-        if state.get("day") != today or "day_start_equity" not in state:
+        if last_equity and last_equity > 0:
             state["day"] = today
-            state["day_start_equity"] = equity
+            state["day_start_equity"] = float(last_equity)
+            state["day_start_source"] = "broker_last_equity"
+        else:
+            if state.get("day") != today or "day_start_equity" not in state:
+                state["day"] = today
+                state["day_start_equity"] = equity
+            state["day_start_source"] = "first_run_snapshot"
         state["peak_equity"] = max(state.get("peak_equity", equity), equity)
 
         day_start = state["day_start_equity"] or equity

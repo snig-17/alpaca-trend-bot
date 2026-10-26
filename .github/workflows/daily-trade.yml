@@ -1,17 +1,29 @@
 name: daily-trade
 
-# Runs ONE paper rebalance per weekday. A daily-bar trend bot only needs to fire
-# once a day, so an ephemeral scheduled runner is the right model (no 24/7 server).
-# Equities trade only in US market hours; the bot logs SKIP otherwise and BTC (24/7)
-# still rebalances. State + journal are committed back so circuit-breaker history
-# (peak equity, day start) survives across ephemeral runs.
+# Runs ONE paper rebalance per weekday, scheduled TWICE for redundancy. A daily-bar
+# trend bot only needs to fire once a day, so an ephemeral scheduled runner is the
+# right model (no 24/7 server). Equities trade only in US market hours; the bot logs
+# SKIP otherwise and BTC (24/7) still rebalances. State + journal are committed back
+# so circuit-breaker history (peak equity, day start) survives across ephemeral runs.
 
 on:
   schedule:
-    # Every day at 15:00 UTC. Weekdays this is inside US market hours (11:00 ET EDT /
-    # 10:00 ET EST) so equities rebalance; on weekends/holidays equities are closed and
-    # the run logs SKIP for them while still managing BTC (crypto trades 24/7).
-    - cron: "0 15 * * *"
+    # TWO slots, because GitHub's scheduled runners are best-effort and drift: a
+    # "0 15" schedule was in practice firing at 18:00-22:21 UTC, i.e. after the
+    # 20:00 UTC equity close, so 13 of 89 trading days skipped all nine ETFs and
+    # only BTC traded. Both slots therefore sit early, on off-peak minutes (the
+    # top of the hour is the most congested and drifts worst).
+    #
+    #   14:37 UTC -- primary. Just after the latest year-round US open
+    #                (14:30 UTC in EST, 13:30 UTC in EDT), leaving ~5.4h of
+    #                drift headroom before the 20:00 UTC close.
+    #   17:47 UTC -- backup, for the days the primary drifts past the close or
+    #                never fires at all. If the primary already rebalanced with
+    #                the market open, bot.py holds and places no orders (see
+    #                `already_rebalanced_today` in bot.py), so the second slot
+    #                costs nothing on a normal day.
+    - cron: "37 14 * * *"
+    - cron: "47 17 * * *"
   workflow_dispatch: {}   # lets you run it manually from the Actions tab
 
 permissions:
@@ -34,12 +46,19 @@ jobs:
       - name: Install dependencies
         run: pip install alpaca-py yfinance pandas numpy scipy matplotlib
 
+      # A manual dispatch is a human deliberately asking for a rebalance, so it
+      # bypasses the once-a-day guard; the scheduled slots do not.
       - name: Run one rebalance (PAPER)
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           BOT_MODE: PAPER          # hard paper; live gate still requires the other checks
-        run: python bot.py once
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python bot.py once --force
+          else
+            python bot.py once
+          fi
 
       - name: Persist state + journal
         if: always()               # keep the audit trail even if the run errored

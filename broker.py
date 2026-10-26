@@ -56,6 +56,16 @@ class Position:
 
 class BrokerBase:
     def get_equity(self) -> float: ...
+
+    def get_last_equity(self) -> float | None:
+        """Equity at the PREVIOUS trading day's close, or None if unavailable.
+
+        This is the baseline the daily-loss breaker measures against; a broker that
+        cannot supply it makes the breaker fall back to a local snapshot (see
+        RiskManager.breaker_check).
+        """
+        return None
+
     def get_buying_power(self) -> float: ...
     def get_positions(self) -> dict[str, Position]: ...
     def is_market_open(self) -> bool: ...
@@ -78,6 +88,20 @@ class AlpacaBroker(BrokerBase):
 
     def get_equity(self) -> float:
         return float(_run(lambda: self.client.get_account()).equity)
+
+    def get_last_equity(self) -> float | None:
+        # Alpaca reports `last_equity` = account equity as of the previous trading
+        # day's close. Returns None rather than raising: a missing previous close
+        # must not abort a rebalance, it just downgrades the daily-loss baseline.
+        try:
+            raw = _run(lambda: self.client.get_account()).last_equity
+        except Exception:
+            return None
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
 
     def get_buying_power(self) -> float:
         return float(_run(lambda: self.client.get_account()).buying_power)
@@ -156,9 +180,12 @@ class AlpacaBroker(BrokerBase):
 # ---------------------------------------------------------------------------
 class MockBroker(BrokerBase):
     def __init__(self, equity: float = 100_000.0, prices: dict[str, float] | None = None,
-                 market_open: bool = True):
+                 market_open: bool = True, last_equity: float | None = None):
         self.cash = equity
         self._equity = equity
+        # Stands in for Alpaca's previous-close equity; defaults to the opening
+        # equity so a fresh mock book starts the day flat (0% day P&L).
+        self.last_equity = equity if last_equity is None else last_equity
         self.prices = prices or {}
         self.market_open = market_open
         self.positions: dict[str, Position] = {}
@@ -174,6 +201,9 @@ class MockBroker(BrokerBase):
     def get_equity(self) -> float:
         self.mark_to_market()
         return self._equity
+
+    def get_last_equity(self) -> float | None:
+        return self.last_equity
 
     def get_buying_power(self) -> float:
         return max(0.0, self.get_equity()) * 2.0
