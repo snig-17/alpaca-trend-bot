@@ -85,7 +85,7 @@ python validate_for_live.py  # walk-forward validation; writes validation_report
 | max_position_pct (per name) | 25% |
 | max_gross_leverage | 1.5x |
 | per_group_gross_cap (correlated cluster) | 60% |
-| daily_loss_limit_pct (halt + flatten) | 3% |
+| daily_loss_limit_pct (halt + flatten) | 3% (baseline = Alpaca `last_equity`, the previous close — NOT a snapshot taken by the current run, which made day P&L structurally 0.00) |
 | max_drawdown_pct (halt + flatten) | 10% |
 
 ## HARD GUARDRAILS — do not weaken
@@ -151,8 +151,14 @@ in the trade loop. Two layers, split by where they CAN run:
     is DISABLED — the Claude sandbox blocks yfinance egress. Re-validation now runs on
     GitHub Actions instead (below).
 - **Trade loop → GitHub Actions** (`.github/workflows/daily-trade.yml`): runs
-  `bot.py once` weekdays 15:00 UTC on an ephemeral runner (a daily-bar bot needs no
-  24/7 server). PAPER via BOT_MODE + Alpaca keys in repo Actions Secrets. Persists
+  `bot.py once` on an ephemeral runner (a daily-bar bot needs no 24/7 server), at
+  **two slots: 14:37 UTC primary + 17:47 UTC backup**. GitHub's scheduled runners
+  are best-effort: the old single `0 15` slot was firing 18:00–22:21 UTC, past the
+  20:00 UTC equity close, so 13 of 89 trading days traded BTC only. Both slots are
+  early and on off-peak minutes; the backup HOLDS if the primary already rebalanced
+  with the market open (`bot.already_rebalanced_today`, state keys
+  `last_rebalance_date` / `last_rebalance_market_open`). A manual `workflow_dispatch`
+  passes `--force` to bypass that guard. PAPER via BOT_MODE + Alpaca keys in repo Actions Secrets. Persists
   `state/` + `journal/` back (now tracked, rebase-retry, hard-fail if it can't push)
   so breaker history (peak equity) survives runs. SOLE trader — local trade agent
   removed. Reads winner params from the committed `validation_reports/trend.json`.

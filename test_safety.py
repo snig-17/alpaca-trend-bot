@@ -7,11 +7,15 @@ MockBroker and synthetic data. Run:  python test_safety.py
 It exercises:
   1. Position sizing + hard caps (per-name, per-cluster, gross leverage)
   2. Daily-loss killswitch
+ 2b. The daily-loss baseline coming from the broker's PREVIOUS CLOSE, so the
+     breaker can actually fire on a bot that runs once a day
   3. Max-drawdown circuit breaker
   4. The three-gate LIVE authorization refusing an un-validated strategy
   5. The KILL file halting instantly
   6. End-to-end: a normal paper rebalance, then a crash that trips the breaker
      and auto-flattens the book
+  7. The twice-daily schedule: the backup slot holds if the primary already
+     rebalanced, and --force overrides it
 """
 
 from __future__ import annotations
@@ -78,6 +82,35 @@ def test_daily_loss_killswitch():
     ok(not halt, "no halt at start of day")
     halt, reasons = rm.breaker_check(96_000, state)     # -4% on the day
     ok(halt and any("daily loss" in r for r in reasons), f"halts on -4% day: {reasons}")
+
+
+def test_daily_loss_uses_broker_previous_close():
+    print("\n[2b] Daily-loss baseline comes from the broker's previous close")
+    rm = RiskManager(config.RISK)
+
+    # The bug: the bot runs ONCE a day, so the first (and only) call of the day
+    # snapshotted day_start = current equity. Day P&L was therefore structurally
+    # 0.00 (it read 0.0 in 127 of 128 journal rows) and a -4% day was invisible.
+    halt_old, _ = rm.breaker_check(96_000, {})
+    ok(not halt_old, "snapshot-only baseline cannot see a -4% day (the old bug)")
+
+    state = {}
+    halt, reasons = rm.breaker_check(96_000, state, last_equity=100_000)
+    ok(halt and any("daily loss" in r for r in reasons),
+       f"-4% vs previous close halts on the FIRST run of the day: {reasons}")
+    ok(state.get("day_start_source") == "broker_last_equity",
+       "records that the broker's previous close was used")
+    ok(abs(state["day_pl"] + 0.04) < 1e-9,
+       f"day_pl is the real -4%, not 0.00 (got {state['day_pl']:+.4f})")
+
+    # A broker with no previous close must degrade, not crash.
+    offline = {}
+    halt_off, _ = rm.breaker_check(100_000, offline, last_equity=None)
+    ok(not halt_off and offline.get("day_start_source") == "first_run_snapshot",
+       "falls back to the local snapshot when no previous close is available")
+
+    ok(MockBroker(equity=50_000.0).get_last_equity() == 50_000.0,
+       "MockBroker exposes a previous close, so the end-to-end path uses this branch")
 
 
 def test_drawdown_breaker():
@@ -155,14 +188,47 @@ def test_end_to_end_then_crash():
     _clean()
 
 
+def test_backup_slot_holds():
+    print("\n[7] Backup schedule slot holds instead of re-trading the book")
+    _clean()
+    config.MODE = "PAPER"
+    engine_data.load = lambda symbol, period="2y": _synthetic_uptrend()
+    prices = {i.alpaca: 100.0 for i in config.UNIVERSE}
+    mb = MockBroker(equity=100_000.0, prices=prices, market_open=True)
+
+    r1 = bot.run_once(mb, dry_run=False)
+    ok(r1.get("orders_placed", 0) > 0,
+       f"primary slot rebalanced ({r1.get('orders_placed')} orders)")
+    after_primary = len(mb.order_log)
+
+    r2 = bot.run_once(mb, dry_run=False)
+    ok(r2.get("skipped") == "already rebalanced today",
+       f"backup slot held: {r2.get('skipped')!r}")
+    ok(len(mb.order_log) == after_primary, "backup slot placed no orders")
+
+    r3 = bot.run_once(mb, dry_run=False, force=True)
+    ok("skipped" not in r3, "--force (manual dispatch) overrides the daily guard")
+
+    # A run that happened with the market CLOSED only managed BTC, so the nine
+    # ETFs still need a pass -- that run must not claim the day.
+    st = J.load_state()
+    st["last_rebalance_market_open"] = False
+    J.save_state(st)
+    ok(not bot.already_rebalanced_today(J.load_state()),
+       "a market-closed run does not count as the day's rebalance")
+    _clean()
+
+
 if __name__ == "__main__":
     print("=" * 70)
     print(" SAFETY TEST SUITE (MockBroker, no credentials, no network)")
     print("=" * 70)
     test_sizing_and_caps()
     test_daily_loss_killswitch()
+    test_daily_loss_uses_broker_previous_close()
     test_drawdown_breaker()
     test_live_gate_refuses()
     test_kill_file()
     test_end_to_end_then_crash()
+    test_backup_slot_holds()
     print("\nAll safety checks passed.\n")

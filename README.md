@@ -34,7 +34,7 @@ not "fund it now."** Trade only money you could lose entirely.
 | **Three-gate live** | LIVE requires *all* of: `BOT_MODE=LIVE` + `I_UNDERSTAND_LIVE_RISK=YES`; a hand-created `LIVE_AUTHORIZED` token file; and a fresh, passing validation report for the strategy. |
 | **Volatility-targeted sizing** | ATR-based; risk per position is roughly constant across instruments. |
 | **Hard caps** | Per-name cap, per-correlated-cluster cap (so SPY+EFA can't secretly become one huge bet), and a gross-leverage cap — enforced regardless of what the strategy wants. |
-| **Daily-loss killswitch** | If the day's P&L breaches −3%, the bot cancels orders, flattens the book, and halts. |
+| **Daily-loss killswitch** | If the day's P&L breaches −3%, the bot cancels orders, flattens the book, and halts. The day's baseline is the broker's *previous close* (Alpaca `last_equity`), so it works for a bot that runs once a day. |
 | **Max-drawdown breaker** | If equity falls 10% from its peak, same: flatten and halt. |
 | **`KILL` file** | Create a file named `KILL` in the folder to halt instantly, any mode. |
 | **`HALTED` file** | Written automatically when a breaker trips; the bot refuses to resume until a human reviews and deletes it. |
@@ -107,6 +107,13 @@ need an always-on process):
 ```cron
 30 20 * * 1-5  cd /path/to/trading-bot && set -a && . ./.env && set +a && /usr/bin/python3 bot.py once >> bot.log 2>&1
 ```
+
+Schedule it **inside** US market hours (13:30–20:00 UTC in EDT, 14:30–21:00 UTC in
+EST) or the nine ETFs log `SKIP_MARKET_CLOSED` and only BTC rebalances. On a
+best-effort scheduler such as GitHub Actions — whose runs can drift hours late —
+schedule two early slots: `bot.py once` holds on the second one if the first
+already rebalanced with the market open, and `bot.py once --force` overrides that
+guard for a manual run. `.github/workflows/daily-trade.yml` does exactly this.
 
 A $5–10/month VPS is fine. Use the `KILL` file as your emergency stop.
 

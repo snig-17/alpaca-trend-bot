@@ -13,6 +13,7 @@ sits in this loop.
 CLI:
     python bot.py once          # one paper rebalance (real Alpaca paper account)
     python bot.py dry            # compute + journal intended trades, place none
+    python bot.py once --force   # rebalance even if today's run already happened
 """
 
 from __future__ import annotations
@@ -74,23 +75,45 @@ def compute_signal_atr(df, strategy: str):
 
 def _rationale(strategy: str, sig: float, target_frac: float) -> str:
     direction = "long" if sig > 0 else ("short" if sig < 0 else "flat")
+    p = runtime_params(strategy)
+    # Name the params actually traded. Hard-coding "50/200" mislabelled every journal
+    # row once the validated winner became 50/150.
     desc = {
-        "trend": "50/200 EMA trend",
-        "mean_reversion": "z-score mean reversion",
-        "breakout": "Donchian breakout",
+        "trend": f"{p.get('fast')}/{p.get('slow')} EMA trend",
+        "mean_reversion": f"z-score mean reversion (lookback {p.get('lookback')})",
+        "breakout": f"Donchian breakout (lookback {p.get('lookback')})",
     }.get(strategy, strategy)
     return f"{desc}: signal={direction}; target {target_frac:+.1%} of equity"
 
 
-def run_once(broker: BrokerBase, dry_run: bool = False, min_rebalance_frac: float = 0.005) -> dict:
+def already_rebalanced_today(state: dict, today: str | None = None) -> bool:
+    """True if an earlier run today already rebalanced with the US market OPEN.
+
+    The workflow fires twice a day (an early slot plus a late backup) because
+    GitHub's scheduled runners drift by hours and a late run skips all nine ETFs.
+    On a normal day the primary slot does the work and the backup must hold rather
+    than churn the book a second time. A run that happened while the market was
+    closed does NOT count: it only managed BTC, so the equities still need a pass.
+    """
+    today = today or dt.date.today().isoformat()
+    return bool(state.get("last_rebalance_date") == today
+                and state.get("last_rebalance_market_open"))
+
+
+def run_once(broker: BrokerBase, dry_run: bool = False, min_rebalance_frac: float = 0.005,
+             force: bool = False) -> dict:
     state = J.load_state()
 
     # 1. Gates that can stop us entirely
     preflight.assert_can_trade(config.STRATEGY)
 
-    # 2. Circuit breakers -- evaluated before doing anything
+    # 2. Circuit breakers -- evaluated before doing anything. The daily-loss
+    # baseline is the broker's previous-day close, not a snapshot taken by this
+    # run, or the day P&L would always read 0.00 and the breaker could never fire.
     equity = broker.get_equity()
-    halt, reasons = RiskManager(config.RISK).breaker_check(equity, state)
+    last_equity = broker.get_last_equity()
+    halt, reasons = RiskManager(config.RISK).breaker_check(equity, state,
+                                                           last_equity=last_equity)
     if halt:
         J.journal_pnl(equity, state.get("day_pl", 0.0), state.get("drawdown", 0.0))
         if not dry_run:
@@ -101,6 +124,16 @@ def run_once(broker: BrokerBase, dry_run: bool = False, min_rebalance_frac: floa
         return {"halted": reasons, "equity": equity, "action": "flattened"}
 
     market_open = broker.is_market_open()
+
+    # 2b. The backup slot holds if the primary already did today's rebalance. The
+    # breakers above still ran, so the backup is a real second safety check even
+    # on a day it places no orders.
+    if not force and already_rebalanced_today(state):
+        J.journal_pnl(equity, state.get("day_pl", 0.0), state.get("drawdown", 0.0))
+        J.save_state(state)
+        return {"mode": config.MODE, "equity": round(equity, 2),
+                "market_open": market_open, "orders_planned": 0, "orders_placed": 0,
+                "skipped": "already rebalanced today", "dry_run": dry_run}
 
     # 3. Signals + sizing
     rm = RiskManager(config.RISK)
@@ -162,6 +195,11 @@ def run_once(broker: BrokerBase, dry_run: bool = False, min_rebalance_frac: floa
             placed.append(broker.submit_market_order(sym, qty, side))
 
     state["consecutive_errors"] = 0
+    if not dry_run:
+        # Record the rebalance so the day's backup slot can hold. A dry run decided
+        # nothing, so it must not claim the day.
+        state["last_rebalance_date"] = dt.date.today().isoformat()
+        state["last_rebalance_market_open"] = bool(market_open)
     J.journal_pnl(equity, state.get("day_pl", 0.0), state.get("drawdown", 0.0))
     J.save_state(state)
     return {
@@ -172,11 +210,11 @@ def run_once(broker: BrokerBase, dry_run: bool = False, min_rebalance_frac: floa
     }
 
 
-def safe_run_once(broker: BrokerBase, dry_run: bool = False) -> dict:
+def safe_run_once(broker: BrokerBase, dry_run: bool = False, force: bool = False) -> dict:
     """Wrap run_once so repeated failures HALT instead of hammering the broker."""
     state = J.load_state()
     try:
-        result = run_once(broker, dry_run=dry_run)
+        result = run_once(broker, dry_run=dry_run, force=force)
         return result
     except TradingHalted as e:
         return {"halted_preflight": str(e)}
@@ -191,7 +229,9 @@ def safe_run_once(broker: BrokerBase, dry_run: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "dry"
+    args = sys.argv[1:]
+    cmd = args[0] if args else "dry"
+    force = "--force" in args          # a human asking by hand overrides the daily guard
     b = make_broker()
-    out = safe_run_once(b, dry_run=(cmd == "dry"))
+    out = safe_run_once(b, dry_run=(cmd == "dry"), force=force)
     print(dt.datetime.now().isoformat(timespec="seconds"), out)
