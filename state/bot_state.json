@@ -1,8 +1,11 @@
 {
-  "day": "2026-10-26",
-  "day_start_equity": 106050.72,
+  "day": "2026-10-27",
+  "day_start_equity": 106084.72690575685,
   "peak_equity": 108174.98,
-  "day_pl": 0.0,
-  "drawdown": -0.019637258079456044,
-  "consecutive_errors": 0
+  "day_pl": 0.001415124482306629,
+  "drawdown": -0.017935108469629424,
+  "consecutive_errors": 0,
+  "day_start_source": "broker_last_equity",
+  "last_rebalance_date": "2026-10-27",
+  "last_rebalance_market_open": true
 }
