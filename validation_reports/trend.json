@@ -14,13 +14,13 @@
   ],
   "n_trials": 19,
   "winner_params": {
-    "fast": 50,
+    "fast": 75,
     "slow": 150
   },
-  "periods_per_year": 292.4,
-  "is_sharpe": 0.894,
-  "oos_sharpe": 1.161,
-  "deflated_sharpe": 0.9997,
+  "periods_per_year": 292.6,
+  "is_sharpe": 0.898,
+  "oos_sharpe": 1.036,
+  "deflated_sharpe": 0.9998,
   "passing": true,
-  "generated_at": "2026-10-01T15:13:04"
+  "generated_at": "2026-11-01T14:50:02"
 }
